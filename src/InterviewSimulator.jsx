@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Shuffle, Eye, EyeOff, RotateCcw, Filter, X, BookOpen, Sparkles, Plus, Building2, FolderPlus, Settings, ChevronDown } from 'lucide-react';
+import { Shuffle, Eye, EyeOff, RotateCcw, Filter, X, BookOpen, Sparkles, Plus, Building2, FolderPlus, Settings, ChevronDown, Download } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { DEFAULT_INTERVIEW_DATA } from './constants/interviewData';
@@ -186,6 +186,44 @@ export default function InterviewSimulator() {
     setShowCompanyModal(false);
   }, []);
 
+  // 녹음 내보내기 (질문 + 음성 텍스트)
+  const exportRecordings = useCallback(() => {
+    const recordingEntries = Object.entries(recordings);
+    if (recordingEntries.length === 0) {
+      alert('내보낼 녹음이 없습니다.');
+      return;
+    }
+
+    const exportData = {
+      company: currentCompany?.name || 'Unknown',
+      exportedAt: new Date().toISOString(),
+      recordings: recordingEntries.map(([questionId, rec]) => {
+        // questionId에서 질문 정보 찾기
+        const question = allQuestions.find(q => {
+          const qId = `${q.category}-${q.question.slice(0, 20)}`;
+          return qId === questionId;
+        });
+
+        return {
+          questionId,
+          question: question?.question || questionId,
+          category: question?.category || 'Unknown',
+          transcript: rec.transcript || null,
+          duration: rec.duration,
+          recordedAt: new Date().toISOString()
+        };
+      })
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentCompany?.name || 'recordings'}_녹음_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [recordings, currentCompany, allQuestions]);
+
   // 데이터 업데이트 함수
   const updateCompanyData = useCallback((newData) => {
     setCompanies(prev => prev.map(c =>
@@ -309,32 +347,51 @@ export default function InterviewSimulator() {
   }, [data, updateCompanyData]);
 
   const updateQuestion = useCallback((originalCategory, originalQuestion, newData) => {
-    let newCategories = data.categories.map(cat => {
-      if (cat.category === originalCategory) {
-        return {
-          ...cat,
-          questions: cat.questions.filter(q => q.question !== originalQuestion)
-        };
-      }
-      return cat;
-    });
+    const updatedQuestion = {
+      question: newData.question,
+      answer: newData.answer,
+      keywords: newData.keywords,
+      isFollowup: newData.isFollowup
+    };
 
-    newCategories = newCategories.map(cat => {
-      if (cat.category === newData.category) {
-        return {
-          ...cat,
-          questions: [...cat.questions, {
-            question: newData.question,
-            answer: newData.answer,
-            keywords: newData.keywords,
-            isFollowup: newData.isFollowup
-          }]
-        };
-      }
-      return cat;
-    });
+    // 같은 카테고리면 제자리에서 수정
+    if (originalCategory === newData.category) {
+      const newCategories = data.categories.map(cat => {
+        if (cat.category === originalCategory) {
+          return {
+            ...cat,
+            questions: cat.questions.map(q =>
+              q.question === originalQuestion ? updatedQuestion : q
+            )
+          };
+        }
+        return cat;
+      });
+      updateCompanyData({ ...data, categories: newCategories });
+    } else {
+      // 다른 카테고리로 이동하면 원래 위치에서 제거 후 새 카테고리 맨 뒤에 추가
+      let newCategories = data.categories.map(cat => {
+        if (cat.category === originalCategory) {
+          return {
+            ...cat,
+            questions: cat.questions.filter(q => q.question !== originalQuestion)
+          };
+        }
+        return cat;
+      });
 
-    updateCompanyData({ ...data, categories: newCategories });
+      newCategories = newCategories.map(cat => {
+        if (cat.category === newData.category) {
+          return {
+            ...cat,
+            questions: [...cat.questions, updatedQuestion]
+          };
+        }
+        return cat;
+      });
+
+      updateCompanyData({ ...data, categories: newCategories });
+    }
   }, [data, updateCompanyData]);
 
   const deleteQuestion = useCallback((category, question) => {
@@ -350,6 +407,21 @@ export default function InterviewSimulator() {
       });
       updateCompanyData({ ...data, categories: newCategories });
     }
+  }, [data, updateCompanyData]);
+
+  const toggleFollowup = useCallback((category, questionText) => {
+    const newCategories = data.categories.map(cat => {
+      if (cat.category === category) {
+        return {
+          ...cat,
+          questions: cat.questions.map(q =>
+            q.question === questionText ? { ...q, isFollowup: !q.isFollowup } : q
+          )
+        };
+      }
+      return cat;
+    });
+    updateCompanyData({ ...data, categories: newCategories });
   }, [data, updateCompanyData]);
 
   const toggleCategory = useCallback((category) => {
@@ -520,6 +592,11 @@ export default function InterviewSimulator() {
           <button onClick={resetProgress} className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-gray-200 text-gray-700 rounded-xl font-medium hover:border-gray-300">
             <RotateCcw size={18} />진행률 초기화
           </button>
+          {recordingStats > 0 && (
+            <button onClick={exportRecordings} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-medium shadow-md hover:shadow-lg transition-all hover:scale-105">
+              <Download size={18} />녹음 내보내기 ({recordingStats})
+            </button>
+          )}
         </div>
       </div>
 
@@ -545,6 +622,8 @@ export default function InterviewSimulator() {
                 onEdit={() => { setEditingQuestion(randomQuestion); setShowQuestionModal(true); }}
                 onDelete={() => deleteQuestion(randomQuestion.category, randomQuestion.question)}
                 isEditMode={isEditMode}
+                isFollowup={randomQuestion.isFollowup}
+                onToggleFollowup={() => toggleFollowup(randomQuestion.category, randomQuestion.question)}
               />
             </div>
           </div>
@@ -581,6 +660,7 @@ export default function InterviewSimulator() {
                     isFollowup={question.isFollowup}
                     onAddAfter={(q) => { setInsertAfterQuestion(q); setAddAsFollowup(false); setShowQuestionModal(true); }}
                     onAddFollowup={(q) => { setInsertAfterQuestion(q); setAddAsFollowup(true); setShowQuestionModal(true); }}
+                    onToggleFollowup={() => toggleFollowup(question.category, question.question)}
                   />
                 </div>
               ))}

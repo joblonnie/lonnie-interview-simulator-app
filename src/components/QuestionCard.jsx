@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, CheckCircle, Circle, Mic, Eye, EyeOff, FileText, Edit3, Trash2, BarChart3, Plus, CornerDownRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, CheckCircle, Circle, Mic, Eye, EyeOff, FileText, Edit3, Trash2, BarChart3, Plus, CornerDownRight, X } from 'lucide-react';
 import { CATEGORY_COLORS, defaultColor } from '../constants/categoryColors';
 import AudioRecorder from './AudioRecorder';
 import SpeechAnalysis from './SpeechAnalysis';
@@ -20,7 +20,8 @@ const QuestionCard = ({
   isEditMode,
   isFollowup = false,
   onAddAfter,
-  onAddFollowup
+  onAddFollowup,
+  onToggleFollowup
 }) => {
   const colors = CATEGORY_COLORS[category] || defaultColor;
   const questionId = `${category}-${question.question.slice(0, 20)}`;
@@ -40,14 +41,23 @@ const QuestionCard = ({
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${colors.badge} ${colors.text}`}>{category}</span>
               {isFollowup && (
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 flex items-center gap-1">
+                <button
+                  onClick={(e) => { e.stopPropagation(); if (onToggleFollowup) onToggleFollowup(); }}
+                  className="text-xs font-medium px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 flex items-center gap-1 hover:bg-orange-200 transition-colors"
+                  title="클릭하여 꼬리질문 해제"
+                >
                   <CornerDownRight size={10} />꼬리질문
-                </span>
+                  <X size={10} className="ml-0.5" />
+                </button>
               )}
               {recordings[questionId] && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 flex items-center gap-1"><Mic size={12} />녹음됨</span>}
               {hasTranscript && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 flex items-center gap-1"><BarChart3 size={12} />분석가능</span>}
             </div>
-            <h3 className={`font-medium text-gray-800 ${isCompleted ? 'line-through opacity-60' : ''}`}>Q. {question.question}</h3>
+            <h3
+              className={`font-medium text-gray-800 ${isCompleted ? 'line-through opacity-60' : ''} ${onEdit ? 'cursor-text' : ''}`}
+              onDoubleClick={(e) => { if (onEdit) { e.stopPropagation(); onEdit(); } }}
+              title={onEdit ? '더블 클릭하여 수정' : ''}
+            >Q. {question.question}</h3>
           </div>
           <div className="flex items-center gap-1">
             {isEditMode && (
@@ -109,7 +119,11 @@ const QuestionCard = ({
                     <CheckCircle size={14} />
                     모범 답안
                   </div>
-                  <p className="text-gray-700 whitespace-pre-line leading-relaxed">{question.answer}</p>
+                  <p
+                    className={`text-gray-700 whitespace-pre-line leading-relaxed ${onEdit ? 'cursor-text' : ''}`}
+                    onDoubleClick={(e) => { if (onEdit) { e.stopPropagation(); onEdit(); } }}
+                    title={onEdit ? '더블 클릭하여 수정' : ''}
+                  >{question.answer}</p>
                   {question.keywords && (
                     <div className="mt-4 pt-3 border-t border-gray-100">
                       <div className="flex items-start gap-2 text-sm">

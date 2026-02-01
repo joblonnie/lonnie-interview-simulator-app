@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Mic, Square, Play, Pause, Trash2, Volume2, AlertCircle } from 'lucide-react';
+import { Mic, Square, Play, Pause, Trash2, Volume2, AlertCircle, Download } from 'lucide-react';
 
 const AudioRecorder = ({ questionId, recordings, setRecordings }) => {
   const [isRecording, setIsRecording] = useState(false);
@@ -152,6 +152,17 @@ const AudioRecorder = ({ questionId, recordings, setRecordings }) => {
     }
   };
 
+  const downloadRecording = () => {
+    if (recording && recording.blob) {
+      const url = URL.createObjectURL(recording.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `recording_${questionId.replace(/[^a-zA-Z0-9가-힣]/g, '_')}.webm`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
   useEffect(() => {
     if (recording) {
       audioRef.current = new Audio(recording.url);
@@ -207,7 +218,8 @@ const AudioRecorder = ({ questionId, recordings, setRecordings }) => {
                 <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${recording.duration > 0 ? (playbackTime / recording.duration) * 100 : 0}%` }} />
               </div>
             </div>
-            <button onClick={deleteRecording} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
+            <button onClick={downloadRecording} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg" title="녹음 다운로드"><Download size={16} /></button>
+            <button onClick={deleteRecording} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg" title="녹음 삭제"><Trash2 size={16} /></button>
           </div>
         )}
       </div>
