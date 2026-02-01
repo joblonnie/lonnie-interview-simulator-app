@@ -1,8 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Shuffle, Eye, EyeOff, RotateCcw, Filter, X, BookOpen, Sparkles, Plus, Building2, FolderPlus, Settings, ChevronDown } from 'lucide-react';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { DEFAULT_INTERVIEW_DATA } from './constants/interviewData';
 import { CATEGORY_COLORS, defaultColor } from './constants/categoryColors';
 import QuestionCard from './components/QuestionCard';
+import DraggableQuestionCard from './components/DraggableQuestionCard';
 import QuestionModal from './components/modals/QuestionModal';
 import CategoryModal from './components/modals/CategoryModal';
 import CompanyModal from './components/modals/CompanyModal';
@@ -70,6 +73,34 @@ export default function InterviewSimulator() {
     return questions;
   }, [data]);
 
+  // 메인 질문과 꼬리질문을 그룹화
+  const groupedQuestions = useMemo(() => {
+    const groups = [];
+    let currentGroup = null;
+
+    allQuestions.forEach(q => {
+      if (!q.isFollowup) {
+        // 메인 질문: 새 그룹 시작
+        currentGroup = { main: q, followups: [] };
+        groups.push(currentGroup);
+      } else if (currentGroup) {
+        // 꼬리질문: 현재 그룹에 추가
+        currentGroup.followups.push(q);
+      } else {
+        // 꼬리질문인데 앞에 메인 질문이 없는 경우 (예외 처리)
+        currentGroup = { main: q, followups: [] };
+        groups.push(currentGroup);
+      }
+    });
+
+    return groups;
+  }, [allQuestions]);
+
+  const filteredGroups = useMemo(() => {
+    if (selectedCategories.length === 0) return groupedQuestions;
+    return groupedQuestions.filter(g => selectedCategories.includes(g.main.category));
+  }, [groupedQuestions, selectedCategories]);
+
   const filteredQuestions = useMemo(() => {
     if (selectedCategories.length === 0) return allQuestions;
     return allQuestions.filter(q => selectedCategories.includes(q.category));
@@ -82,6 +113,18 @@ export default function InterviewSimulator() {
   }, [filteredQuestions, completedQuestions]);
 
   const recordingStats = useMemo(() => Object.keys(recordings).length, [recordings]);
+
+  // 드래그 앤 드롭 센서 설정
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // 회사 관리 함수들
   const addCompany = useCallback((name) => {
@@ -152,6 +195,71 @@ export default function InterviewSimulator() {
     ));
   }, [currentCompanyId]);
 
+  // 드래그 선택 모달 상태
+  const [dragAction, setDragAction] = useState(null); // { movedQuestion, targetQuestion }
+
+  // 드래그 종료 핸들러 - 선택 모달 표시
+  const handleDragEnd = useCallback((event) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) return;
+
+    const movedQuestion = filteredQuestions.find(q => q.id === active.id);
+    const targetQuestion = filteredQuestions.find(q => q.id === over.id);
+
+    if (!movedQuestion || !targetQuestion) return;
+
+    // 타겟이 메인 질문이면 선택 모달 표시, 아니면 바로 처리
+    if (!targetQuestion.isFollowup) {
+      setDragAction({ movedQuestion, targetQuestion });
+    } else {
+      // 타겟이 꼬리질문이면 바로 꼬리질문으로 이동
+      executeDragAction(movedQuestion, targetQuestion, true);
+    }
+  }, [filteredQuestions]);
+
+  // 실제 드래그 액션 실행
+  const executeDragAction = useCallback((movedQuestion, targetQuestion, asFollowup) => {
+    const newCategories = data.categories.map(cat => {
+      // 원래 카테고리에서 제거
+      if (cat.category === movedQuestion.category) {
+        const filtered = cat.questions.filter(q => q.question !== movedQuestion.question);
+        if (cat.category !== targetQuestion.category) {
+          return { ...cat, questions: filtered };
+        }
+        // 같은 카테고리면 여기서 삽입도 처리
+        const targetIdx = filtered.findIndex(q => q.question === targetQuestion.question);
+        const newQuestions = [...filtered];
+        // asFollowup이면 타겟 뒤에, 아니면 타겟 앞에 삽입
+        const insertIdx = asFollowup ? targetIdx + 1 : targetIdx;
+        newQuestions.splice(insertIdx, 0, {
+          question: movedQuestion.question,
+          answer: movedQuestion.answer,
+          keywords: movedQuestion.keywords,
+          isFollowup: asFollowup
+        });
+        return { ...cat, questions: newQuestions };
+      }
+      // 다른 카테고리로 이동하는 경우
+      if (cat.category === targetQuestion.category) {
+        const targetIdx = cat.questions.findIndex(q => q.question === targetQuestion.question);
+        const newQuestions = [...cat.questions];
+        const insertIdx = asFollowup ? targetIdx + 1 : targetIdx;
+        newQuestions.splice(insertIdx, 0, {
+          question: movedQuestion.question,
+          answer: movedQuestion.answer,
+          keywords: movedQuestion.keywords,
+          isFollowup: asFollowup
+        });
+        return { ...cat, questions: newQuestions };
+      }
+      return cat;
+    });
+
+    updateCompanyData({ ...data, categories: newCategories });
+    setDragAction(null);
+  }, [data, updateCompanyData]);
+
   // 카테고리 관리
   const addCategory = useCallback((name) => {
     const newCategories = [...data.categories, {
@@ -170,18 +278,30 @@ export default function InterviewSimulator() {
   }, [data, updateCompanyData]);
 
   // 질문 관리
-  const addQuestion = useCallback((questionData) => {
+  const [insertAfterQuestion, setInsertAfterQuestion] = useState(null);
+  const [addAsFollowup, setAddAsFollowup] = useState(false);
+
+  const addQuestion = useCallback((questionData, afterQuestion = null) => {
+    const newQuestion = {
+      question: questionData.question,
+      answer: questionData.answer,
+      keywords: questionData.keywords,
+      isFollowup: questionData.isFollowup
+    };
+
     const newCategories = data.categories.map(cat => {
       if (cat.category === questionData.category) {
-        return {
-          ...cat,
-          questions: [...cat.questions, {
-            question: questionData.question,
-            answer: questionData.answer,
-            keywords: questionData.keywords,
-            isFollowup: questionData.isFollowup
-          }]
-        };
+        if (afterQuestion) {
+          // 특정 질문 뒤에 삽입
+          const idx = cat.questions.findIndex(q => q.question === afterQuestion.question);
+          if (idx !== -1) {
+            const newQuestions = [...cat.questions];
+            newQuestions.splice(idx + 1, 0, newQuestion);
+            return { ...cat, questions: newQuestions };
+          }
+        }
+        // 맨 뒤에 추가
+        return { ...cat, questions: [...cat.questions, newQuestion] };
       }
       return cat;
     });
@@ -432,26 +552,41 @@ export default function InterviewSimulator() {
       )}
 
       <main className="max-w-4xl mx-auto px-4 pb-8">
-        <div className="space-y-3">
-          {filteredQuestions.map((question) => (
-            <QuestionCard
-              key={question.id}
-              question={question}
-              category={question.category}
-              isExpanded={expandedQuestions[question.id]}
-              onToggle={() => toggleQuestion(question.id)}
-              isCompleted={completedQuestions[question.id]}
-              onComplete={() => toggleComplete(question.id)}
-              recordings={recordings}
-              setRecordings={setRecordings}
-              showAnswer={visibleAnswers[question.id]}
-              onToggleAnswer={() => toggleAnswer(question.id)}
-              onEdit={() => { setEditingQuestion(question); setShowQuestionModal(true); }}
-              onDelete={() => deleteQuestion(question.category, question.question)}
-              isEditMode={isEditMode}
-            />
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={filteredQuestions.map(q => q.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-2">
+              {filteredQuestions.map((question) => (
+                <div key={question.id} className={question.isFollowup ? 'ml-8' : ''}>
+                  <DraggableQuestionCard
+                    question={question}
+                    category={question.category}
+                    isExpanded={expandedQuestions[question.id]}
+                    onToggle={() => toggleQuestion(question.id)}
+                    isCompleted={completedQuestions[question.id]}
+                    onComplete={() => toggleComplete(question.id)}
+                    recordings={recordings}
+                    setRecordings={setRecordings}
+                    showAnswer={visibleAnswers[question.id]}
+                    onToggleAnswer={() => toggleAnswer(question.id)}
+                    onEdit={() => { setEditingQuestion(question); setShowQuestionModal(true); }}
+                    onDelete={() => deleteQuestion(question.category, question.question)}
+                    isEditMode={isEditMode}
+                    isFollowup={question.isFollowup}
+                    onAddAfter={(q) => { setInsertAfterQuestion(q); setAddAsFollowup(false); setShowQuestionModal(true); }}
+                    onAddFollowup={(q) => { setInsertAfterQuestion(q); setAddAsFollowup(true); setShowQuestionModal(true); }}
+                  />
+                </div>
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
         {filteredQuestions.length === 0 && (
           <div className="text-center py-12">
             <Filter size={48} className="mx-auto text-gray-400 mb-4" />
@@ -486,16 +621,20 @@ export default function InterviewSimulator() {
 
       <QuestionModal
         isOpen={showQuestionModal}
-        onClose={() => { setShowQuestionModal(false); setEditingQuestion(null); }}
+        onClose={() => { setShowQuestionModal(false); setEditingQuestion(null); setInsertAfterQuestion(null); setAddAsFollowup(false); }}
         onSave={(formData) => {
           if (editingQuestion) {
             updateQuestion(editingQuestion.category, editingQuestion.question, formData);
           } else {
-            addQuestion(formData);
+            addQuestion(formData, insertAfterQuestion);
           }
+          setInsertAfterQuestion(null);
+          setAddAsFollowup(false);
         }}
         question={editingQuestion}
         categories={data.categories}
+        insertAfterQuestion={insertAfterQuestion}
+        addAsFollowup={addAsFollowup}
       />
 
       <CategoryModal
@@ -504,6 +643,50 @@ export default function InterviewSimulator() {
         onSave={addCategory}
         categoryName={editingCategory}
       />
+
+      {/* 드래그 액션 선택 모달 */}
+      {dragAction && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-fadeIn">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">이동 방식 선택</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              "{dragAction.movedQuestion.question.slice(0, 30)}..."을(를) 어떻게 이동할까요?
+            </p>
+            <div className="space-y-2">
+              <button
+                onClick={() => executeDragAction(dragAction.movedQuestion, dragAction.targetQuestion, false)}
+                className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all text-left"
+              >
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <Shuffle size={20} className="text-blue-600" />
+                </div>
+                <div>
+                  <div className="font-medium text-gray-800">순서 변경</div>
+                  <div className="text-sm text-gray-500">"{dragAction.targetQuestion.question.slice(0, 20)}..." 앞으로 이동</div>
+                </div>
+              </button>
+              <button
+                onClick={() => executeDragAction(dragAction.movedQuestion, dragAction.targetQuestion, true)}
+                className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-orange-300 hover:bg-orange-50 transition-all text-left"
+              >
+                <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
+                  <Building2 size={20} className="text-orange-600" />
+                </div>
+                <div>
+                  <div className="font-medium text-gray-800">꼬리질문으로 추가</div>
+                  <div className="text-sm text-gray-500">"{dragAction.targetQuestion.question.slice(0, 20)}..."의 꼬리질문으로 변환</div>
+                </div>
+              </button>
+            </div>
+            <button
+              onClick={() => setDragAction(null)}
+              className="w-full mt-4 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
-import { Save } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Save, CornerDownRight } from 'lucide-react';
 
-const QuestionModal = ({ isOpen, onClose, onSave, question, categories }) => {
+const QuestionModal = ({ isOpen, onClose, onSave, question, categories, insertAfterQuestion, addAsFollowup = false }) => {
   const initialFormData = useMemo(() => {
     if (question) {
       return {
@@ -16,17 +16,19 @@ const QuestionModal = ({ isOpen, onClose, onSave, question, categories }) => {
       question: '',
       answer: '',
       keywords: '',
-      isFollowup: false,
-      category: categories[0]?.category || ''
+      isFollowup: addAsFollowup,
+      category: insertAfterQuestion?.category || categories[0]?.category || ''
     };
-  }, [question, categories]);
+  }, [question, categories, insertAfterQuestion, addAsFollowup]);
 
   const [formData, setFormData] = useState(initialFormData);
 
-  // Sync formData when question/categories change and modal is open
-  if (isOpen && formData.question !== initialFormData.question && question) {
-    setFormData(initialFormData);
-  }
+  // Sync formData when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setFormData(initialFormData);
+    }
+  }, [isOpen, initialFormData]);
 
   if (!isOpen) return null;
 
@@ -62,9 +64,19 @@ const QuestionModal = ({ isOpen, onClose, onSave, question, categories }) => {
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-gray-100">
-          <h2 className="text-xl font-bold text-gray-800">
-            {question ? '질문 수정' : '새 질문 추가'}
+          <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+            {question ? '질문 수정' : addAsFollowup ? (
+              <>
+                <CornerDownRight size={20} className="text-orange-500" />
+                꼬리질문 추가
+              </>
+            ) : '새 질문 추가'}
           </h2>
+          {insertAfterQuestion && (
+            <p className="text-sm text-gray-500 mt-1">
+              "{insertAfterQuestion.question.slice(0, 30)}..." 다음에 추가됩니다
+            </p>
+          )}
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
