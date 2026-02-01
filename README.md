@@ -1,16 +1,58 @@
-# React + Vite
+# 면접 시뮬레이터
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+면접 준비를 위한 질문/답변 관리 및 연습 앱입니다.
 
-Currently, two official plugins are available:
+## 시작하기
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+npm install
+npm run dev
+```
 
-## React Compiler
+## 주요 기능
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 회사별 질문 관리
+- 여러 회사의 면접 질문을 별도로 관리
+- 회사 추가/삭제/전환
+- JSON 파일로 템플릿 내보내기/가져오기
 
-## Expanding the ESLint configuration
+### 질문 관리
+- 카테고리별 질문 분류
+- 질문/모범답안/키워드 저장
+- 꼬리질문 지원 (메인 질문 하위에 들여쓰기 표시)
+- 드래그 앤 드롭으로 순서 변경
+- 질문 사이에 새 질문 삽입
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### 음성 녹음 및 분석
+- 질문별 답변 녹음
+- Web Speech API 음성 인식 (Chrome/Edge)
+- 모범 답안과 비교 분석
+  - 내용 유사도 점수
+  - 키워드 매칭 체크
+
+### 학습 관리
+- 질문별 완료 체크
+- 진행률 표시
+- 랜덤 질문 선택
+- 카테고리 필터
+
+## 기술 스택
+
+- React 19 + Vite
+- Tailwind CSS v4
+- @dnd-kit (드래그 앤 드롭)
+- Web Speech API
+- localStorage
+
+## 배포
+
+GitHub Pages 자동 배포 (main 브랜치 push 시)
+
+```bash
+npm run build
+```
+
+## 브라우저 지원
+
+- Chrome/Edge: 전체 기능 지원
+- Firefox/Safari: 음성 인식 미지원
