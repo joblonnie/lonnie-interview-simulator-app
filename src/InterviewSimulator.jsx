@@ -108,6 +108,41 @@ export default function InterviewSimulator() {
     }
   }, [companies, currentCompanyId]);
 
+  // 회사 데이터 내보내기
+  const exportCompany = useCallback((company) => {
+    const exportData = {
+      name: company.name,
+      data: company.data,
+      exportedAt: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${company.name.replace(/[^a-zA-Z0-9가-힣]/g, '_')}_interview.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  // 회사 데이터 가져오기
+  const importCompany = useCallback((importData) => {
+    if (!importData.name || !importData.data) {
+      alert('유효하지 않은 템플릿 파일입니다.');
+      return;
+    }
+    const newCompany = {
+      id: Date.now().toString(),
+      name: importData.name,
+      data: {
+        ...importData.data,
+        totalQuestions: importData.data.categories?.reduce((sum, cat) => sum + cat.questions.length, 0) || 0
+      }
+    };
+    setCompanies(prev => [...prev, newCompany]);
+    setCurrentCompanyId(newCompany.id);
+    setShowCompanyModal(false);
+  }, []);
+
   // 데이터 업데이트 함수
   const updateCompanyData = useCallback((newData) => {
     setCompanies(prev => prev.map(c =>
@@ -445,6 +480,8 @@ export default function InterviewSimulator() {
         onSelect={setCurrentCompanyId}
         onAdd={addCompany}
         onDelete={deleteCompany}
+        onExport={exportCompany}
+        onImport={importCompany}
       />
 
       <QuestionModal

@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { Building2, Trash2, Plus } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Building2, Trash2, Plus, Download, Upload } from 'lucide-react';
 
-const CompanyModal = ({ isOpen, onClose, companies, onSelect, onAdd, onDelete }) => {
+const CompanyModal = ({ isOpen, onClose, companies, onSelect, onAdd, onDelete, onExport, onImport }) => {
   const [newCompanyName, setNewCompanyName] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const fileInputRef = useRef(null);
 
   if (!isOpen) return null;
 
@@ -15,6 +16,23 @@ const CompanyModal = ({ isOpen, onClose, companies, onSelect, onAdd, onDelete })
     onAdd(newCompanyName.trim());
     setNewCompanyName('');
     setShowAddForm(false);
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+        onImport(data);
+      } catch {
+        alert('유효하지 않은 파일 형식입니다.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   return (
@@ -34,18 +52,28 @@ const CompanyModal = ({ isOpen, onClose, companies, onSelect, onAdd, onDelete })
                 className="flex items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-all cursor-pointer group"
                 onClick={() => { onSelect(company.id); onClose(); }}
               >
-                <div>
+                <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-gray-800">{company.name}</h3>
                   <p className="text-sm text-gray-500">
                     {company.data.categories.length}개 카테고리 · {company.data.totalQuestions}개 질문
                   </p>
                 </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onDelete(company.id); }}
-                  className="opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                >
-                  <Trash2 size={18} />
-                </button>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onExport(company); }}
+                    className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg"
+                    title="내보내기"
+                  >
+                    <Download size={18} />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDelete(company.id); }}
+                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                    title="삭제"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -76,13 +104,29 @@ const CompanyModal = ({ isOpen, onClose, companies, onSelect, onAdd, onDelete })
               </div>
             </div>
           ) : (
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="mt-4 w-full p-4 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-2"
-            >
-              <Plus size={20} />
-              새 회사 추가
-            </button>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="flex-1 p-4 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-2"
+              >
+                <Plus size={20} />
+                새 회사 추가
+              </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="p-4 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 hover:border-emerald-300 hover:text-emerald-500 hover:bg-emerald-50 transition-all flex items-center justify-center"
+                title="템플릿 가져오기"
+              >
+                <Upload size={20} />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+            </div>
           )}
         </div>
         <div className="p-4 border-t border-gray-100">
