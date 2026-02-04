@@ -119,7 +119,7 @@ const QuestionCard = ({
 
       {isExpanded && (
         <div className="px-3 pb-3 pt-0" style={{ borderTop: '1px solid var(--orchid)' }}>
-          <div className="pl-8 space-y-3 mt-3">
+          <div className="pl-0 md:pl-8 space-y-3 mt-3">
             <AudioRecorder questionId={questionId} recordings={recordings} setRecordings={setRecordings} />
             {hasTranscript && (
               <button onClick={(e) => { e.stopPropagation(); setShowAnalysis(!showAnalysis); }} className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors" style={{ backgroundColor: showAnalysis ? 'var(--orchid)' : 'white', color: showAnalysis ? 'var(--orchid-deep)' : 'var(--text-mid)', border: '1px solid var(--orchid-dark)' }}>

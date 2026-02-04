@@ -65,17 +65,17 @@ const QuestionModal = ({ isOpen, onClose, onSave, question, categories, customCa
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--cloud)' }}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 md:p-4">
+      <div className="rounded-2xl shadow-2xl w-full max-w-lg max-h-[95vh] md:max-h-[90vh] overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--cloud)' }}>
         {/* 헤더 */}
-        <div className="p-5 bg-white" style={{ borderBottom: '1px solid var(--orchid)' }}>
-          <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: 'var(--text-dark)' }}>
+        <div className="p-4 md:p-5 bg-white" style={{ borderBottom: '1px solid var(--orchid)' }}>
+          <h2 className="text-base md:text-lg font-bold flex items-center gap-2" style={{ color: 'var(--text-dark)' }}>
             {question ? '질문 수정' : '새 질문 추가'}
           </h2>
         </div>
 
         {/* 폼 */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-mid)' }}>카테고리</label>
             <select
@@ -139,18 +139,18 @@ const QuestionModal = ({ isOpen, onClose, onSave, question, categories, customCa
         </form>
 
         {/* 버튼 */}
-        <div className="p-5 bg-white flex gap-3" style={{ borderTop: '1px solid var(--orchid)' }}>
+        <div className="p-4 md:p-5 bg-white flex gap-3" style={{ borderTop: '1px solid var(--orchid)' }}>
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 px-4 py-2.5 rounded-lg font-medium hover:opacity-80"
+            className="flex-1 px-3 md:px-4 py-2.5 rounded-lg font-medium hover:opacity-80 text-sm md:text-base"
             style={{ border: '1px solid var(--orchid-dark)', color: 'var(--text-mid)' }}
           >
             취소
           </button>
           <button
             onClick={handleSubmit}
-            className="flex-1 px-4 py-2.5 text-white rounded-lg font-medium flex items-center justify-center gap-2 hover:opacity-90"
+            className="flex-1 px-3 md:px-4 py-2.5 text-white rounded-lg font-medium flex items-center justify-center gap-2 hover:opacity-90 text-sm md:text-base"
             style={{ backgroundColor: 'var(--orchid-accent)' }}
           >
             <Save size={18} />

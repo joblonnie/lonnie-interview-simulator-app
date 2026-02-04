@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Shuffle, RotateCcw, BookOpen, Sparkles, ChevronDown, ChevronRight,
-  Download, Plus, FolderOpen, Folder, Trash2, Edit3, FilePlus, FolderPlus, Pencil
+  Download, Plus, FolderOpen, Folder, Trash2, Edit3, FilePlus, FolderPlus, Pencil,
+  Menu, X
 } from 'lucide-react';
 
 import QuestionCard from './components/QuestionCard';
@@ -47,6 +48,7 @@ export default function InterviewSimulator() {
   const [editingSubCategory, setEditingSubCategory] = useState(null);
   const [hoveredCategory, setHoveredCategory] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const currentCompany = useMemo(() => companies.find(c => c.id === currentCompanyId) || companies[0], [companies, currentCompanyId]);
   const data = useMemo(() => currentCompany?.data || { categories: [], totalQuestions: 0 }, [currentCompany]);
@@ -283,10 +285,18 @@ export default function InterviewSimulator() {
     <div className="h-screen flex flex-col" style={{ backgroundColor: 'var(--cloud)' }}>
       {/* 헤더 */}
       <header className="flex-shrink-0 bg-white/80 backdrop-blur-sm border-b z-10" style={{ borderColor: 'var(--orchid)' }}>
-        <div className="px-4 py-3">
+        <div className="px-3 md:px-4 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl shadow-sm" style={{ backgroundColor: 'var(--orchid-accent)' }}>
+            <div className="flex items-center gap-2 md:gap-3">
+              {/* 모바일 메뉴 버튼 */}
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="md:hidden p-2 rounded-lg hover:opacity-70"
+                style={{ color: 'var(--text-dark)' }}
+              >
+                {sidebarOpen ? <X size={22} /> : <Menu size={22} />}
+              </button>
+              <div className="hidden md:block p-2 rounded-xl shadow-sm" style={{ backgroundColor: 'var(--orchid-accent)' }}>
                 <BookOpen className="text-white" size={22} />
               </div>
               <div>
@@ -317,9 +327,37 @@ export default function InterviewSimulator() {
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* 모바일 오버레이 백드롭 */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/30 z-20 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
         {/* 사이드바 */}
-        <aside className="w-56 flex-shrink-0 bg-white/60 backdrop-blur-sm overflow-y-auto" style={{ borderRight: '1px solid var(--orchid)' }}>
+        <aside
+          className={`
+            fixed md:relative inset-y-0 left-0 z-30 md:z-auto
+            w-64 md:w-56 flex-shrink-0 bg-white/95 md:bg-white/60 backdrop-blur-sm overflow-y-auto
+            transform transition-transform duration-300 ease-in-out
+            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          `}
+          style={{ borderRight: '1px solid var(--orchid)', top: '0', paddingTop: 'env(safe-area-inset-top)' }}
+        >
+          {/* 모바일 사이드바 헤더 */}
+          <div className="md:hidden p-3 flex items-center justify-between border-b" style={{ borderColor: 'var(--orchid)' }}>
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg" style={{ backgroundColor: 'var(--orchid-accent)' }}>
+                <BookOpen className="text-white" size={18} />
+              </div>
+              <span className="font-semibold text-sm" style={{ color: 'var(--text-dark)' }}>카테고리</span>
+            </div>
+            <button onClick={() => setSidebarOpen(false)} className="p-1.5 rounded-lg hover:opacity-70" style={{ color: 'var(--text-mid)' }}>
+              <X size={20} />
+            </button>
+          </div>
           <nav className="p-2">
             {Object.entries(categoriesStructure).map(([mainName, mainData]) => {
               const isExpanded = expandedMain[mainName];
@@ -337,7 +375,7 @@ export default function InterviewSimulator() {
                     onContextMenu={(e) => handleContextMenu(e, 'main', mainName)}
                   >
                     <button
-                      onClick={() => { setExpandedMain(prev => ({ ...prev, [mainName]: !prev[mainName] })); setSelectedMainCategory(mainName); setSelectedSubCategory(null); }}
+                      onClick={() => { setExpandedMain(prev => ({ ...prev, [mainName]: !prev[mainName] })); setSelectedMainCategory(mainName); setSelectedSubCategory(null); setSidebarOpen(false); }}
                       className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-semibold transition-colors"
                       style={{ backgroundColor: isMainSelected ? 'var(--ice)' : 'transparent', color: isMainSelected ? 'var(--ice-deep)' : 'var(--text-dark)' }}
                     >
@@ -371,7 +409,7 @@ export default function InterviewSimulator() {
                             onMouseLeave={() => setHoveredCategory(null)}
                             onContextMenu={(e) => handleContextMenu(e, 'sub', mainName, subName)}
                           >
-                            <button onClick={() => { setSelectedMainCategory(mainName); setSelectedSubCategory(subName); }}
+                            <button onClick={() => { setSelectedMainCategory(mainName); setSelectedSubCategory(subName); setSidebarOpen(false); }}
                               className="flex-1 flex items-center gap-2 px-2 py-1.5 rounded text-left text-xs transition-colors"
                               style={{ backgroundColor: isSelected ? 'var(--orchid)' : 'transparent', color: isSelected ? 'var(--orchid-deep)' : 'var(--text-mid)', fontWeight: isSelected ? 500 : 400 }}
                             >
@@ -424,11 +462,11 @@ export default function InterviewSimulator() {
 
         {/* 메인 컨텐츠 */}
         <main
-          className="flex-1 overflow-y-auto p-4"
+          className="flex-1 overflow-y-auto p-3 md:p-4"
           style={{ backgroundColor: 'var(--cloud)' }}
         >
           {randomQuestion && (
-            <div className="mb-4 p-4 rounded-xl" style={{ backgroundColor: 'var(--orchid)', border: '1px solid var(--orchid-dark)' }}>
+            <div className="mb-4 p-3 md:p-4 rounded-xl" style={{ backgroundColor: 'var(--orchid)', border: '1px solid var(--orchid-dark)' }}>
               <div className="flex items-center gap-2 mb-3">
                 <Sparkles size={18} style={{ color: 'var(--orchid-accent)' }} />
                 <span className="font-semibold text-sm" style={{ color: 'var(--orchid-deep)' }}>랜덤 선택</span>
@@ -444,7 +482,7 @@ export default function InterviewSimulator() {
 
           <div className="space-y-2">
             {currentQuestions.map((question) => (
-              <div key={question.id} className={question.isFollowup ? 'ml-5' : ''}>
+              <div key={question.id} className={question.isFollowup ? 'ml-3 md:ml-5' : ''}>
                 <QuestionCard question={question} category={question.category} isExpanded={expandedQuestions[question.id]} onToggle={() => toggleQuestion(question.id)} isCompleted={completedQuestions[question.id]} onComplete={() => toggleComplete(question.id)} recordings={recordings} setRecordings={setRecordings} showAnswer={visibleAnswers[question.id] !== false} onToggleAnswer={() => toggleAnswer(question.id)} onEdit={() => { setEditingQuestion(question); setShowQuestionModal(true); }} onDelete={() => deleteQuestion(question.category, question.question)} isEditMode={true} isFollowup={question.isFollowup} onToggleFollowup={() => toggleFollowup(question.category, question.question)} onUpdateKeywords={updateKeywords} />
               </div>
             ))}
@@ -452,7 +490,7 @@ export default function InterviewSimulator() {
               <div className="text-center py-12" style={{ color: 'var(--text-light)' }}>
                 <Folder size={40} className="mx-auto mb-3 opacity-50" />
                 <p className="text-sm">질문이 없습니다</p>
-                <p className="text-xs mt-1">우클릭하여 질문을 추가하세요</p>
+                <p className="text-xs mt-1">사이드바에서 우클릭하여 질문을 추가하세요</p>
               </div>
             )}
           </div>
