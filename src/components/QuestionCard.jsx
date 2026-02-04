@@ -1,165 +1,205 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronRight, CheckCircle, Circle, Mic, Eye, EyeOff, FileText, Edit3, Trash2, BarChart3, Plus, CornerDownRight, X } from 'lucide-react';
-import { CATEGORY_COLORS, defaultColor } from '../constants/categoryColors';
+import { useState, useRef } from 'react';
+import { ChevronDown, ChevronRight, CheckCircle, Circle, Eye, EyeOff, FileText, Edit3, Trash2, BarChart3, CornerDownRight, Plus, Minus, GripVertical } from 'lucide-react';
 import AudioRecorder from './AudioRecorder';
 import SpeechAnalysis from './SpeechAnalysis';
 
 const QuestionCard = ({
-  question,
-  category,
-  isExpanded,
-  onToggle,
-  isCompleted,
-  onComplete,
-  recordings,
-  setRecordings,
-  showAnswer,
-  onToggleAnswer,
-  onEdit,
-  onDelete,
-  isEditMode,
-  isFollowup = false,
-  onAddAfter,
-  onAddFollowup,
-  onToggleFollowup
+  question, category, isExpanded, onToggle, isCompleted, onComplete,
+  recordings, setRecordings, showAnswer, onToggleAnswer,
+  onEdit, onDelete, isEditMode, isFollowup = false, onToggleFollowup, onUpdateKeywords
 }) => {
-  const colors = CATEGORY_COLORS[category] || defaultColor;
   const questionId = `${category}-${question.question.slice(0, 20)}`;
   const [showAnalysis, setShowAnalysis] = useState(false);
-
+  const [newKeyword, setNewKeyword] = useState('');
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
   const recording = recordings[questionId];
-  const hasTranscript = recording && recording.transcript;
+  const hasTranscript = recording?.transcript;
+
+  // 키워드를 배열로 변환
+  const keywordArray = question.keywords
+    ? question.keywords.split(',').map(k => k.trim()).filter(k => k.length > 0)
+    : [];
+
+  const addKeyword = () => {
+    const trimmed = newKeyword.trim();
+    if (!trimmed) return;
+    if (keywordArray.includes(trimmed)) {
+      setNewKeyword('');
+      return;
+    }
+    const newKeywords = [...keywordArray, trimmed].join(', ');
+    onUpdateKeywords?.(category, question.question, newKeywords);
+    setNewKeyword('');
+  };
+
+  const removeKeyword = (index) => {
+    const newKeywords = keywordArray.filter((_, i) => i !== index).join(', ');
+    onUpdateKeywords?.(category, question.question, newKeywords);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addKeyword();
+    }
+  };
+
+  // 드래그 앤 드롭 핸들러
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', index);
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = (e, dropIndex) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === dropIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const newArray = [...keywordArray];
+    const [draggedItem] = newArray.splice(draggedIndex, 1);
+    newArray.splice(dropIndex, 0, draggedItem);
+
+    const newKeywords = newArray.join(', ');
+    onUpdateKeywords?.(category, question.question, newKeywords);
+
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
 
   return (
-    <div className="space-y-1">
-      <div className={`rounded-xl border-2 ${colors.border} ${isFollowup ? 'bg-orange-50/50' : colors.bg} overflow-hidden transition-all duration-300 ${isExpanded ? 'shadow-lg' : 'shadow-sm hover:shadow-md'}`}>
-        <div className="p-4 cursor-pointer flex items-start gap-3" onClick={onToggle}>
-          <button onClick={(e) => { e.stopPropagation(); onComplete(); }} className={`mt-0.5 flex-shrink-0 transition-colors ${isCompleted ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-400'}`}>
-            {isCompleted ? <CheckCircle size={22} /> : <Circle size={22} />}
-          </button>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${colors.badge} ${colors.text}`}>{category}</span>
-              {isFollowup && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); if (onToggleFollowup) onToggleFollowup(); }}
-                  className="text-xs font-medium px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 flex items-center gap-1 hover:bg-orange-200 transition-colors"
-                  title="클릭하여 꼬리질문 해제"
-                >
-                  <CornerDownRight size={10} />꼬리질문
-                  <X size={10} className="ml-0.5" />
-                </button>
-              )}
-              {recordings[questionId] && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 flex items-center gap-1"><Mic size={12} />녹음됨</span>}
-              {hasTranscript && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 flex items-center gap-1"><BarChart3 size={12} />분석가능</span>}
-            </div>
-            <h3
-              className={`font-medium text-gray-800 ${isCompleted ? 'line-through opacity-60' : ''} ${onEdit ? 'cursor-text' : ''}`}
-              onDoubleClick={(e) => { if (onEdit) { e.stopPropagation(); onEdit(); } }}
-              title={onEdit ? '더블 클릭하여 수정' : ''}
-            >Q. {question.question}</h3>
-          </div>
-          <div className="flex items-center gap-1">
-            {isEditMode && (
-              <>
-                <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg">
-                  <Edit3 size={18} />
-                </button>
-                <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
-                  <Trash2 size={18} />
-                </button>
-              </>
-            )}
-            <div className="text-gray-400">{isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}</div>
-          </div>
-        </div>
-
-        {isExpanded && (
-          <div className="px-4 pb-4 pt-0 border-t border-gray-100">
-            <div className="pl-9 space-y-3 mt-3">
-              <AudioRecorder questionId={questionId} recordings={recordings} setRecordings={setRecordings} />
-
-              {hasTranscript && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); setShowAnalysis(!showAnalysis); }}
-                  className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
-                    showAnalysis
-                      ? 'bg-purple-50 border-purple-200 text-purple-700'
-                      : 'bg-white border-gray-200 text-gray-600 hover:border-purple-300 hover:bg-purple-50'
-                  }`}
-                >
-                  <BarChart3 size={18} />
-                  <span className="font-medium">{showAnalysis ? '분석 결과 숨기기' : '내 답변 분석하기'}</span>
-                </button>
-              )}
-
-              {showAnalysis && hasTranscript && (
-                <SpeechAnalysis
-                  transcript={recording.transcript}
-                  answer={question.answer}
-                  keywords={question.keywords}
-                />
-              )}
-
-              <button
-                onClick={(e) => { e.stopPropagation(); onToggleAnswer(); }}
-                className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
-                  showAnswer
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                    : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                <FileText size={18} />
-                <span className="font-medium">{showAnswer ? '모범 답안 숨기기' : '모범 답안 보기'}</span>
-                {showAnswer ? <EyeOff size={16} /> : <Eye size={16} />}
+    <div className="rounded-xl bg-white transition-all" style={{ border: isExpanded ? '1px solid var(--orchid-dark)' : '1px solid var(--orchid)', boxShadow: isExpanded ? '0 4px 12px rgba(166,124,145,0.1)' : 'none' }}>
+      <div className="p-3 cursor-pointer flex items-start gap-3" onClick={onToggle}>
+        <button onClick={(e) => { e.stopPropagation(); onComplete(); }} className="mt-0.5 flex-shrink-0 transition-colors" style={{ color: isCompleted ? 'var(--orchid-accent)' : 'var(--orchid-dark)' }}>
+          {isCompleted ? <CheckCircle size={20} /> : <Circle size={20} />}
+        </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--orchid)', color: 'var(--orchid-deep)' }}>{category}</span>
+            {isFollowup && (
+              <button onClick={(e) => { e.stopPropagation(); onToggleFollowup?.(); }} className="text-[10px] font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5" style={{ backgroundColor: 'var(--orchid-dark)', color: 'white' }}>
+                <CornerDownRight size={10} />꼬리
               </button>
-              {showAnswer && (
-                <div className="bg-white rounded-lg p-4 border border-gray-100 animate-fadeIn">
-                  <div className="text-xs font-semibold text-emerald-600 mb-2 uppercase tracking-wide flex items-center gap-1">
-                    <CheckCircle size={14} />
-                    모범 답안
-                  </div>
-                  <p
-                    className={`text-gray-700 whitespace-pre-line leading-relaxed ${onEdit ? 'cursor-text' : ''}`}
-                    onDoubleClick={(e) => { if (onEdit) { e.stopPropagation(); onEdit(); } }}
-                    title={onEdit ? '더블 클릭하여 수정' : ''}
-                  >{question.answer}</p>
-                  {question.keywords && (
-                    <div className="mt-4 pt-3 border-t border-gray-100">
-                      <div className="flex items-start gap-2 text-sm">
-                        <span className="font-medium text-gray-500 whitespace-nowrap">키워드:</span>
-                        <span className={`${colors.text} font-medium`}>{question.keywords}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            )}
+            {recordings[questionId] && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: 'var(--orchid-accent)' }}>녹음</span>}
           </div>
-        )}
+          <p className="text-sm font-medium" style={{ color: isCompleted ? 'var(--text-light)' : 'var(--text-dark)', textDecoration: isCompleted ? 'line-through' : 'none' }}>Q. {question.question}</p>
+        </div>
+        <div className="flex items-center gap-1">
+          {isEditMode && (
+            <>
+              <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className="p-1.5 rounded hover:opacity-70" style={{ color: 'var(--orchid-accent)' }}><Edit3 size={16} /></button>
+              <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-1.5 rounded hover:opacity-70" style={{ color: 'var(--text-light)' }}><Trash2 size={16} /></button>
+            </>
+          )}
+          <div style={{ color: 'var(--orchid-dark)' }}>{isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}</div>
+        </div>
       </div>
 
-      {/* 질문 추가 버튼 */}
-      {isEditMode && (
-        <div className="flex justify-center gap-2">
-          {onAddAfter && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onAddAfter(question); }}
-              className="group flex items-center gap-1 px-3 py-1 text-xs text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-all"
-            >
-              <Plus size={14} />
-              <span className="opacity-0 group-hover:opacity-100 transition-opacity">질문 추가</span>
+      {isExpanded && (
+        <div className="px-3 pb-3 pt-0" style={{ borderTop: '1px solid var(--orchid)' }}>
+          <div className="pl-8 space-y-3 mt-3">
+            <AudioRecorder questionId={questionId} recordings={recordings} setRecordings={setRecordings} />
+            {hasTranscript && (
+              <button onClick={(e) => { e.stopPropagation(); setShowAnalysis(!showAnalysis); }} className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors" style={{ backgroundColor: showAnalysis ? 'var(--orchid)' : 'white', color: showAnalysis ? 'var(--orchid-deep)' : 'var(--text-mid)', border: '1px solid var(--orchid-dark)' }}>
+                <BarChart3 size={16} />{showAnalysis ? '분석 숨기기' : '내 답변 분석'}
+              </button>
+            )}
+            {showAnalysis && hasTranscript && <SpeechAnalysis transcript={recording.transcript} answer={question.answer} keywords={question.keywords} />}
+            <button onClick={(e) => { e.stopPropagation(); onToggleAnswer(); }} className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors" style={{ backgroundColor: showAnswer ? 'var(--orchid)' : 'white', color: showAnswer ? 'var(--orchid-deep)' : 'var(--text-mid)', border: '1px solid var(--orchid-dark)' }}>
+              <FileText size={16} />{showAnswer ? '답안 숨기기' : '모범 답안 보기'}{showAnswer ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>
-          )}
-          {!isFollowup && onAddFollowup && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onAddFollowup(question); }}
-              className="group flex items-center gap-1 px-3 py-1 text-xs text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-full transition-all"
-            >
-              <CornerDownRight size={14} />
-              <span className="opacity-0 group-hover:opacity-100 transition-opacity">꼬리질문 추가</span>
-            </button>
-          )}
+            {showAnswer && (
+              <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--cloud)', border: '1px solid var(--orchid)' }}>
+                <div className="text-[10px] font-semibold mb-2 uppercase flex items-center gap-1" style={{ color: 'var(--orchid-accent)' }}><CheckCircle size={12} />모범 답안</div>
+                <p className="text-sm whitespace-pre-line leading-relaxed" style={{ color: 'var(--text-dark)' }}>{question.answer}</p>
+
+                {/* 키워드 노드 영역 - 드래그 앤 드롭 지원 */}
+                <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--orchid)' }}>
+                  <div className="text-[10px] font-medium mb-2" style={{ color: 'var(--text-light)' }}>키워드 (드래그하여 순서 변경)</div>
+                  <div className="flex flex-wrap gap-1.5 items-center">
+                    {keywordArray.map((keyword, index) => (
+                      <span
+                        key={`${keyword}-${index}`}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, index)}
+                        onDragOver={(e) => handleDragOver(e, index)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleDrop(e, index)}
+                        onDragEnd={handleDragEnd}
+                        className="group flex items-center gap-0.5 pl-1 pr-1 py-1 rounded-full text-xs font-medium transition-all cursor-grab active:cursor-grabbing select-none"
+                        style={{
+                          backgroundColor: dragOverIndex === index ? 'var(--ice-dark)' : 'var(--ice)',
+                          color: 'var(--ice-deep)',
+                          opacity: draggedIndex === index ? 0.5 : 1,
+                          transform: dragOverIndex === index ? 'scale(1.05)' : 'scale(1)',
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <GripVertical size={10} className="opacity-40 group-hover:opacity-70 flex-shrink-0" />
+                        <span className="px-1">{keyword}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); removeKeyword(index); }}
+                          className="flex items-center justify-center w-4 h-4 rounded-full hover:bg-white/50 transition-colors flex-shrink-0"
+                          title="삭제"
+                        >
+                          <Minus size={10} />
+                        </button>
+                      </span>
+                    ))}
+                    {/* 키워드 추가 */}
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={newKeyword}
+                        onChange={(e) => setNewKeyword(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        onClick={(e) => e.stopPropagation()}
+                        placeholder="키워드"
+                        className="px-2 py-1 text-xs rounded-l-full outline-none"
+                        style={{
+                          backgroundColor: 'white',
+                          border: '1px solid var(--ice-dark)',
+                          borderRight: 'none',
+                          color: 'var(--text-dark)',
+                          width: '60px'
+                        }}
+                      />
+                      <button
+                        onClick={(e) => { e.stopPropagation(); addKeyword(); }}
+                        className="flex items-center justify-center w-6 h-6 rounded-r-full transition-colors hover:opacity-80"
+                        style={{ backgroundColor: 'var(--ice-accent)', color: 'white' }}
+                        title="추가"
+                      >
+                        <Plus size={12} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

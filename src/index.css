@@ -1,6 +1,24 @@
 @import "tailwindcss";
 
+/* Pantone 2025: Cloud Dancer, Orchid Tint & Ice Melt */
+:root {
+  --cloud: #F0EDE5;
+  --cloud-dark: #E5E0D6;
+  --orchid: #E8D5E0;
+  --orchid-dark: #D4B8C7;
+  --orchid-accent: #A67C91;
+  --orchid-deep: #8B6275;
+  --ice: #D6E5EC;
+  --ice-dark: #B6CBD7;
+  --ice-accent: #7BA3B8;
+  --ice-deep: #5A8299;
+  --text-dark: #4A4145;
+  --text-mid: #6B6367;
+  --text-light: #9A9396;
+}
+
 body {
   margin: 0;
   min-width: 320px;
+  background-color: var(--cloud);
 }

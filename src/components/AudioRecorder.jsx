@@ -18,12 +18,9 @@ const AudioRecorder = ({ questionId, recordings, setRecordings }) => {
 
   const recording = recordings[questionId];
 
-  // Web Speech API 지원 확인
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setSpeechSupported(false);
-    }
+    if (!SpeechRecognition) setSpeechSupported(false);
   }, []);
 
   const startRecording = async () => {
@@ -36,95 +33,42 @@ const AudioRecorder = ({ questionId, recordings, setRecordings }) => {
       recordingTimeRef.current = 0;
       setInterimText('');
 
-      // Web Speech API 초기화
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
         recognition.lang = 'ko-KR';
         recognition.continuous = true;
         recognition.interimResults = true;
-
         recognition.onresult = (event) => {
-          let finalTranscript = '';
-          let interim = '';
-
+          let finalTranscript = '', interim = '';
           for (let i = event.resultIndex; i < event.results.length; i++) {
             const transcript = event.results[i][0].transcript;
-            if (event.results[i].isFinal) {
-              finalTranscript += transcript + ' ';
-            } else {
-              interim += transcript;
-            }
+            if (event.results[i].isFinal) finalTranscript += transcript + ' ';
+            else interim += transcript;
           }
-
-          if (finalTranscript) {
-            transcriptRef.current += finalTranscript;
-          }
+          if (finalTranscript) transcriptRef.current += finalTranscript;
           setInterimText(interim);
         };
-
-        recognition.onerror = (event) => {
-          console.log('Speech recognition error:', event.error);
-        };
-
-        recognition.onend = () => {
-          // 녹음 중인데 인식이 끝나면 다시 시작 (네트워크 끊김 등)
-          if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-            try {
-              recognition.start();
-            } catch (e) {
-              console.log('Recognition restart failed:', e);
-            }
-          }
-        };
-
+        recognition.onerror = () => {};
+        recognition.onend = () => { if (mediaRecorderRef.current?.state === 'recording') try { recognition.start(); } catch {} };
         recognitionRef.current = recognition;
-        try {
-          recognition.start();
-        } catch (e) {
-          console.log('Speech recognition start failed:', e);
-        }
+        try { recognition.start(); } catch {}
       }
 
       mediaRecorder.ondataavailable = (event) => audioChunksRef.current.push(event.data);
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const audioUrl = URL.createObjectURL(audioBlob);
-
-        // 음성 인식 중지
-        if (recognitionRef.current) {
-          try {
-            recognitionRef.current.stop();
-          } catch (e) {
-            console.log('Recognition stop failed:', e);
-          }
-        }
-
-        const finalTranscript = transcriptRef.current.trim();
-
-        setRecordings(prev => ({
-          ...prev,
-          [questionId]: {
-            url: audioUrl,
-            duration: recordingTimeRef.current,
-            blob: audioBlob,
-            transcript: finalTranscript || null
-          }
-        }));
+        if (recognitionRef.current) try { recognitionRef.current.stop(); } catch {}
+        setRecordings(prev => ({ ...prev, [questionId]: { url: audioUrl, duration: recordingTimeRef.current, blob: audioBlob, transcript: transcriptRef.current.trim() || null } }));
         stream.getTracks().forEach(track => track.stop());
         setInterimText('');
       };
-
       mediaRecorder.start();
       setIsRecording(true);
       setRecordingTime(0);
-      timerRef.current = setInterval(() => {
-        recordingTimeRef.current += 1;
-        setRecordingTime(prev => prev + 1);
-      }, 1000);
-    } catch {
-      alert('마이크 접근 권한이 필요합니다.');
-    }
+      timerRef.current = setInterval(() => { recordingTimeRef.current += 1; setRecordingTime(prev => prev + 1); }, 1000);
+    } catch { alert('마이크 접근 권한이 필요합니다.'); }
   };
 
   const stopRecording = () => {
@@ -132,36 +76,14 @@ const AudioRecorder = ({ questionId, recordings, setRecordings }) => {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       clearInterval(timerRef.current);
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (e) {
-          console.log('Recognition stop failed:', e);
-        }
-      }
+      if (recognitionRef.current) try { recognitionRef.current.stop(); } catch {}
     }
   };
 
   const playRecording = () => { if (recording && audioRef.current) { audioRef.current.play(); setIsPlaying(true); } };
   const pauseRecording = () => { if (audioRef.current) { audioRef.current.pause(); setIsPlaying(false); } };
-  const deleteRecording = () => {
-    if (recording) {
-      URL.revokeObjectURL(recording.url);
-      setRecordings(prev => { const n = { ...prev }; delete n[questionId]; return n; });
-      setPlaybackTime(0);
-    }
-  };
-
-  const downloadRecording = () => {
-    if (recording && recording.blob) {
-      const url = URL.createObjectURL(recording.blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `recording_${questionId.replace(/[^a-zA-Z0-9가-힣]/g, '_')}.webm`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-  };
+  const deleteRecording = () => { if (recording) { URL.revokeObjectURL(recording.url); setRecordings(prev => { const n = { ...prev }; delete n[questionId]; return n; }); setPlaybackTime(0); } };
+  const downloadRecording = () => { if (recording?.blob) { const url = URL.createObjectURL(recording.blob); const a = document.createElement('a'); a.href = url; a.download = `recording.webm`; a.click(); URL.revokeObjectURL(url); } };
 
   useEffect(() => {
     if (recording) {
@@ -176,67 +98,54 @@ const AudioRecorder = ({ questionId, recordings, setRecordings }) => {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-        <Volume2 size={16} className="text-gray-400" />
+      <div className="flex items-center gap-2 p-2.5 rounded-lg" style={{ backgroundColor: 'var(--cloud)', border: '1px solid var(--orchid)' }}>
+        <Volume2 size={14} style={{ color: 'var(--orchid-dark)' }} />
         {!recording ? (
           isRecording ? (
             <div className="flex flex-col gap-2 flex-1">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                <span className="text-sm text-red-600 font-medium">녹음 중... {formatTime(recordingTime)}</span>
-                {speechSupported && <span className="text-xs text-blue-500">🎤 음성 인식 중</span>}
-                <button onClick={stopRecording} className="ml-auto p-2 bg-red-500 text-white rounded-lg hover:bg-red-600"><Square size={16} /></button>
+                <span className="text-xs font-medium text-red-600">녹음 중 {formatTime(recordingTime)}</span>
+                <button onClick={stopRecording} className="ml-auto p-1.5 bg-red-500 text-white rounded hover:bg-red-600"><Square size={14} /></button>
               </div>
-              {/* 실시간 인식 텍스트 표시 */}
               {(transcriptRef.current || interimText) && (
-                <div className="text-xs text-gray-600 bg-white rounded p-2 border border-gray-200">
-                  {transcriptRef.current}
-                  <span className="text-gray-400">{interimText}</span>
+                <div className="text-xs bg-white rounded p-2" style={{ color: 'var(--text-mid)', border: '1px solid var(--orchid)' }}>
+                  {transcriptRef.current}<span style={{ color: 'var(--text-light)' }}>{interimText}</span>
                 </div>
               )}
             </div>
           ) : (
             <div className="flex items-center gap-2 flex-1">
-              <button onClick={startRecording} className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg text-sm font-medium hover:from-red-600 hover:to-pink-600">
-                <Mic size={16} />내 답변 녹음하기
+              <button onClick={startRecording} className="flex items-center gap-1.5 px-2.5 py-1.5 text-white rounded text-xs font-medium hover:opacity-90" style={{ backgroundColor: 'var(--orchid-deep)' }}>
+                <Mic size={14} />녹음
               </button>
-              {!speechSupported && (
-                <span className="text-xs text-amber-600 flex items-center gap-1">
-                  <AlertCircle size={12} />Chrome 브라우저에서 음성 인식 지원
-                </span>
-              )}
+              {!speechSupported && <span className="text-[10px] flex items-center gap-1" style={{ color: 'var(--orchid-accent)' }}><AlertCircle size={10} />Chrome 권장</span>}
             </div>
           )
         ) : (
           <div className="flex items-center gap-2 flex-1">
-            <button onClick={isPlaying ? pauseRecording : playRecording} className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
-              {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+            <button onClick={isPlaying ? pauseRecording : playRecording} className="p-1.5 text-white rounded hover:opacity-90" style={{ backgroundColor: 'var(--orchid-accent)' }}>
+              {isPlaying ? <Pause size={14} /> : <Play size={14} />}
             </button>
             <div className="flex-1">
-              <div className="flex items-center justify-between text-xs text-gray-500 mb-1"><span>{formatTime(playbackTime)}</span><span>{formatTime(recording.duration)}</span></div>
-              <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${recording.duration > 0 ? (playbackTime / recording.duration) * 100 : 0}%` }} />
+              <div className="flex items-center justify-between text-[10px] mb-0.5" style={{ color: 'var(--text-light)' }}>
+                <span>{formatTime(playbackTime)}</span><span>{formatTime(recording.duration)}</span>
+              </div>
+              <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--orchid)' }}>
+                <div className="h-full rounded-full transition-all" style={{ width: `${recording.duration > 0 ? (playbackTime / recording.duration) * 100 : 0}%`, backgroundColor: 'var(--orchid-accent)' }} />
               </div>
             </div>
-            <button onClick={downloadRecording} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg" title="녹음 다운로드"><Download size={16} /></button>
-            <button onClick={deleteRecording} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg" title="녹음 삭제"><Trash2 size={16} /></button>
+            <button onClick={downloadRecording} className="p-1.5 rounded hover:opacity-70" style={{ color: 'var(--orchid-dark)' }}><Download size={14} /></button>
+            <button onClick={deleteRecording} className="p-1.5 rounded hover:opacity-70" style={{ color: 'var(--text-light)' }}><Trash2 size={14} /></button>
           </div>
         )}
       </div>
-
-      {/* 인식된 텍스트 또는 인식 실패 안내 */}
       {recording && (
-        <div className="text-xs px-3 py-2 bg-gray-50 rounded-lg">
+        <div className="text-[10px] px-2.5 py-1.5 rounded" style={{ backgroundColor: 'var(--cloud)', border: '1px solid var(--orchid)' }}>
           {recording.transcript ? (
-            <span className="text-gray-600">
-              <span className="font-medium text-gray-700">인식된 내용: </span>
-              {recording.transcript.slice(0, 100)}{recording.transcript.length > 100 ? '...' : ''}
-            </span>
+            <span style={{ color: 'var(--text-mid)' }}><span className="font-medium" style={{ color: 'var(--text-dark)' }}>인식: </span>{recording.transcript.slice(0, 80)}{recording.transcript.length > 80 ? '...' : ''}</span>
           ) : (
-            <span className="text-amber-600 flex items-center gap-1">
-              <AlertCircle size={12} />
-              음성 인식 결과가 없습니다. Chrome 브라우저를 사용하고 마이크 권한을 확인하세요.
-            </span>
+            <span className="flex items-center gap-1" style={{ color: 'var(--orchid-accent)' }}><AlertCircle size={10} />음성 인식 결과 없음</span>
           )}
         </div>
       )}
